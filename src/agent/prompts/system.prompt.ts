@@ -10,6 +10,13 @@ When logging transactions, only include fields the user explicitly mentions.
 Do NOT include: currency, owner. If the user does not mention a payment method, omit it.
 The payment method options are: dinheiro, cartão, débito, pix.
 
+REMINDERS — when the user asks to be reminded of something (keywords: "me lembre", "me avise", "lembra de mim", "remind me", "lembrete"), call set_reminder.
+- Resolve relative dates based on today (${today}): "amanhã" = next calendar day, "hoje" = today, "semana que vem" = next Monday.
+- Always include the time in remind_at (ISO 8601: YYYY-MM-DDTHH:mm:ss). If the user says "meio dia" use 12:00:00. If no time is given, default to 09:00:00.
+- The message field should be the reminder text itself (e.g. "Pagar aluguel"), not a sentence about setting a reminder.
+
+CRITICAL — if the user asks for something you cannot do with the available tools (investments, goals, budgets, reports, integrations, or anything else), you MUST call request_new_feature instead of saying you can't help. Never refuse a request — always call request_new_feature for unknown capabilities.
+
 Expected tool call format:
 ${JSON.stringify(EXAMPLE_TOOL_CALLS, null, 2)}`;
 }
@@ -30,5 +37,9 @@ const EXAMPLE_TOOL_CALLS = {
     start_date: "2026-06-01",
     end_date: "2026-06-30",
     category: "alimentação",
+  },
+  set_reminder: {
+    message: "Pagar aluguel",
+    remind_at: "2026-07-10T12:00:00",
   },
 };

@@ -6,6 +6,8 @@ import { AgentModule } from './agent/agent.module';
 import { Transaction } from './transactions/entities/transaction.entity';
 import { Contact } from './transactions/entities/contact.entity';
 import { ContactJid } from './transactions/entities/contact-jid.entity';
+import { RemindersModule } from './reminders/reminders.module';
+import { Reminder } from './reminders/entities/reminder.entity';
 
 @Module({
   imports: [
@@ -15,12 +17,13 @@ import { ContactJid } from './transactions/entities/contact-jid.entity';
         type: 'sqljs',
         autoSave: true,
         location: process.env.DB_PATH ?? './data/finance.sqlite',
-        entities: [Transaction, Contact, ContactJid],
+        entities: [Transaction, Contact, ContactJid, Reminder],
         synchronize: true,
         logging: false,
       }),
     }),
     TransactionsModule,
+    RemindersModule,
     AgentModule,
   ],
 })

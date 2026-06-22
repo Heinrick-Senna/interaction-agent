@@ -181,7 +181,9 @@ Seja preciso e siga exatamente os padrões do projeto. Foque em: ${toolName}`;
     ];
 
     // Agentic loop
+    let step = 0;
     while (true) {
+      step++;
       const response = await this.anthropic.messages.create({
         model,
         max_tokens: 8192,
@@ -189,6 +191,14 @@ Seja preciso e siga exatamente os padrões do projeto. Foque em: ${toolName}`;
         tools,
         messages,
       });
+
+      // Send reasoning text and tool calls to user via WhatsApp
+      for (const block of response.content) {
+        if (block.type === 'text' && block.text.trim()) {
+          this.logger.log(`[DevAgent step ${step}] ${block.text.trim()}`);
+          await this.sendWhatsApp(remoteJid, `🧠 *[${step}]* ${block.text.trim()}`);
+        }
+      }
 
       messages.push({ role: 'assistant', content: response.content });
 
@@ -204,6 +214,10 @@ Seja preciso e siga exatamente os padrões do projeto. Foque em: ${toolName}`;
 
       for (const block of response.content) {
         if (block.type !== 'tool_use') continue;
+
+        const inputPreview = JSON.stringify(block.input).substring(0, 200);
+        this.logger.log(`[DevAgent step ${step}] tool_use → ${block.name}(${inputPreview})`);
+        await this.sendWhatsApp(remoteJid, `🔧 *[${step}]* \`${block.name}\`\n${inputPreview}`);
 
         let result: string;
 
@@ -234,7 +248,12 @@ Seja preciso e siga exatamente os padrões do projeto. Foque em: ${toolName}`;
       return;
     }
 
-    const branchName = `feat/auto-${toolName.replace(/_/g, '-')}-${Date.now()}`;
+    const safeName = toolName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')  // spaces/special chars → hyphens
+      .replace(/^-+|-+$/g, '')       // trim leading/trailing hyphens
+      .substring(0, 40);
+    const branchName = `feat/auto-${safeName}-${Date.now()}`;
     const fileChanges: FileChange[] = [];
 
     for (const [filePath, content] of writtenFiles.entries()) {

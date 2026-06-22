@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TransactionsService } from '../transactions/transactions.service';
+import { RemindersService } from '../reminders/reminders.service';
 import {
   AI_PROVIDER,
   AiMessage,
@@ -102,6 +103,21 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'request_new_feature',
+    description:
+      'Call this when the user asks for something that cannot be done with the existing tools. This triggers the developer agent to implement the missing capability.',
+    parameters: {
+      type: 'object',
+      properties: {
+        feature_description: {
+          type: 'string',
+          description: 'Clear description of what the user wants to do.',
+        },
+      },
+      required: ['feature_description'],
+    },
+  },
+  {
     name: 'get_summary',
     description:
       'Get a financial summary for a time period: total expenses, total savings, and a breakdown by category.',
@@ -120,6 +136,31 @@ const TOOLS: ToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: 'set_reminder',
+    description:
+      'Set a reminder to notify the user at a specific date and time via WhatsApp. ' +
+      'Use when the user says "me lembre", "me avise", "lembra de mim", "remind me" or similar. ' +
+      'Resolve relative dates (amanhã, hoje, semana que vem) based on today\'s date.',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description:
+            'The reminder text to send to the user. Should be concise and clear, e.g. "Pagar aluguel".',
+        },
+        remind_at: {
+          type: 'string',
+          description:
+            'ISO 8601 datetime (YYYY-MM-DDTHH:mm:ss) when the reminder should fire. ' +
+            'Always include time — if the user does not specify, use 09:00:00. ' +
+            'Resolve relative expressions: "amanhã meio dia" → next day at 12:00:00.',
+        },
+      },
+      required: ['message', 'remind_at'],
+    },
+  },
 ];
 
 @Injectable()
@@ -132,6 +173,7 @@ export class AgentService {
   constructor(
     @Inject(AI_PROVIDER) private readonly ai: AiProvider,
     private readonly transactions: TransactionsService,
+    private readonly reminders: RemindersService,
   ) {}
 
   async processMessage(userMessage: string, remoteJid: string, today: string): Promise<string> {
@@ -160,9 +202,11 @@ export class AgentService {
       );
 
       // Detect missing function — return sentinel immediately
-      for (const { tc, result } of rawResults) {
-        if (result && typeof result === 'object' && (result as Record<string, unknown>).__missing_function) {
-          return `__MISSING_FUNCTION:${tc.name}`;
+      for (const { result } of rawResults) {
+        const r = result as Record<string, unknown>;
+        if (r?.__missing_function) {
+          // name holds the feature_description (from request_new_feature) or the raw tool name
+          return `__MISSING_FUNCTION:${r.name as string}`;
         }
       }
 
@@ -238,6 +282,23 @@ export class AgentService {
         });
         return summary;
       }
+
+      case 'set_reminder': {
+        const reminder = await this.reminders.create({
+          owner,
+          message: input.message as string,
+          remindAt: input.remind_at as string,
+        });
+        return {
+          success: true,
+          id: reminder.id,
+          message: reminder.message,
+          remindAt: reminder.remindAt,
+        };
+      }
+
+      case 'request_new_feature':
+        return { __missing_function: true, name: input.feature_description as string };
 
       default:
         return { __missing_function: true, name };

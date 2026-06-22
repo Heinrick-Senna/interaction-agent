@@ -4,9 +4,10 @@ import { AgentController } from './agent.controller';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { AiModule } from '../ai/ai.module';
 import { DeveloperModule } from '../developer/developer.module';
+import { RemindersModule } from '../reminders/reminders.module';
 
 @Module({
-  imports: [TransactionsModule, AiModule, DeveloperModule],
+  imports: [TransactionsModule, AiModule, DeveloperModule, RemindersModule],
   providers: [AgentService],
   controllers: [AgentController],
 })
