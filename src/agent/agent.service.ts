@@ -176,6 +176,11 @@ export class AgentService {
     private readonly reminders: RemindersService,
   ) {}
 
+  async clearSession(remoteJid: string): Promise<void> {
+    const contactId = await this.transactions.resolveContactId(remoteJid);
+    this.sessions.delete(contactId);
+  }
+
   async processMessage(userMessage: string, remoteJid: string, today: string): Promise<string> {
     const system = buildSystemPrompt(today);
     const contactId = await this.transactions.resolveContactId(remoteJid);

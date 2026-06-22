@@ -129,27 +129,37 @@ export class AgentController implements OnModuleInit {
     if (!text) return { ok: true };
 
     const remoteJid = payload.data.key.remoteJid;
-    this.logger.log(`[${payload.instance}] ${remoteJid}: ${text}`);
+    // Normalize: trim + collapse whitespace. Preserve case for AI, use lowercase for commands.
+    const normalized = text.trim().replace(/\s+/g, ' ');
+    const cmd = normalized.toLowerCase();
+    this.logger.log(`[${payload.instance}] ${remoteJid}: ${normalized}`);
 
-    // Route to PR review / pending question handler if applicable
+    // ── System commands (regex, case-insensitive) ──────────────────────────
+    if (/^limpar\s+contexto$/i.test(normalized)) {
+      await this.agent.clearSession(remoteJid);
+      await this.sendWhatsAppReply(remoteJid, '🧹 Contexto limpo. Pode começar de novo!');
+      return { ok: true };
+    }
+
+    // ── PR review / pending dev-agent question ─────────────────────────────
     if (this.prReview.hasPendingState(remoteJid)) {
-      const reply = await this.prReview.handleMessage(remoteJid, text);
+      const reply = await this.prReview.handleMessage(remoteJid, cmd);
       if (reply) await this.sendWhatsAppReply(remoteJid, reply);
       return { ok: true };
     }
 
+    // ── Normal agent flow ──────────────────────────────────────────────────
     const today = new Date().toISOString().split('T')[0];
-    const reply = await this.agent.processMessage(text, remoteJid, today);
+    const reply = await this.agent.processMessage(normalized, remoteJid, today);
 
-    // Handle missing function sentinel
     if (reply.startsWith('__MISSING_FUNCTION:')) {
-      const toolName = reply.slice('__MISSING_FUNCTION:'.length);
+      const featureDesc = reply.slice('__MISSING_FUNCTION:'.length);
       await this.sendWhatsAppReply(
         remoteJid,
-        `⚙️ A função *${toolName}* ainda não existe. Estou implementando agora, aguarde...`,
+        `⚙️ Ainda não sei fazer isso: *${featureDesc}*. Estou implementando agora, aguarde...`,
       );
       this.developerAgent
-        .handleMissingFunction(toolName, text, remoteJid)
+        .handleMissingFunction(featureDesc, normalized, remoteJid)
         .catch((e) => this.logger.error('Developer agent error', e));
       return { ok: true };
     }
